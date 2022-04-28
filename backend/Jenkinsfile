@@ -1,0 +1,51 @@
+//!/usr/bin/env groovy
+
+@Library('jenkins-shared-library') _
+
+pipeline {
+    agent  {
+		node {
+			label 'akademija-lin-build'
+		}
+	}
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+    }
+	environment {
+		PATH = "/root/.sdkman/candidates/java/current/bin:/root/.nvm/versions/node/v14.17.5/bin:/usr/lib/apache-maven-3.6.3/bin:$PATH"
+	}
+    stages {
+        stage('Build') {
+            steps {
+             	sh 'cd backend && mvn clean package'
+            }
+        }
+        stage('Stop Akademija KingSpace Java Service') {
+            steps {
+                sh 'systemctl stop akademija-kingspace-java'
+            }
+        }
+        stage('Deploy JAR') {
+            steps {
+                sh 'cp backend/target/kingspace.jar /opt/akademija2021/latest/kingspace.jar'
+            }
+        }
+        stage('Start Akademija KingSpace Java Service') {
+            steps {
+                sh 'systemctl start akademija-kingspace-java'
+            }
+        }
+        stage('Archive Artifacts') {
+            steps {
+                archiveArtifacts artifacts: 'backend/target/kingspace.jar', fingerprint: true
+            }
+        }
+        stage('Start Frontend') {
+            steps {
+              	sh 'cd frontend && npm install'
+              	sh 'cd frontend && npm run build'
+              	sh 'cp -r "frontend/build/"* /usr/share/nginx/kingspace'
+            }
+        }
+	}
+}
